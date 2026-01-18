@@ -16,6 +16,8 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
     - uses: actions/checkout@v3
 
@@ -31,4 +33,7 @@ jobs:
       uses: softprops/action-gh-release@v2
       with:
         files: dist/*
+        generate_release_notes: true
       if: github.ref_type == 'tag'
+      env:
+        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
