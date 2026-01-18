@@ -14,7 +14,7 @@ var (
 )
 
 func init() {
-	flag.BoolVar(&DatedFile, "dated-file", true, "Include date in outfile filename")
+	flag.BoolVar(&DatedFile, "dated-file", true, "Include date in output file name (e.g., scans_1970-01-01.csv)")
 	flag.Parse()
 }
 
