@@ -24,3 +24,9 @@ jobs:
 
     - name: Build
       run: go build -v -o ./dist/
+
+    - name: Release with Notes
+      uses: softprops/action-gh-release@v2
+      with:
+        files: dist/*
+      if: github.ref_type == 'tag'
