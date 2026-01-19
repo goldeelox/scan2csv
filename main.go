@@ -14,18 +14,20 @@ import (
 
 var (
 	DatedFile bool
+	OutputDir string
 )
 
 func init() {
 	flag.BoolVar(&DatedFile, "dated-file", true, "Include date in output file name (e.g., scans_1970-01-01.csv)")
+	flag.StringVar(&OutputDir, "output-dir", ".", "Directory to write CSV files to")
 	flag.Parse()
 }
 
 func filename() string {
 	if DatedFile {
-		return fmt.Sprintf("scans_%s.csv", time.Now().Format(time.DateOnly))
+		return fmt.Sprintf("%s/scans_%s.csv", OutputDir, time.Now().Format(time.DateOnly))
 	}
-	return "scans.csv"
+	return fmt.Sprintf("%s/scans.csv", OutputDir)
 }
 
 func writeToFile(b []byte) {
