@@ -6,7 +6,10 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
+	"syscall"
 	"time"
+
+	"golang.org/x/term"
 )
 
 var (
@@ -25,7 +28,7 @@ func filename() string {
 	return "scans.csv"
 }
 
-func writeToFile(s string) {
+func writeToFile(b []byte) {
 	file := filename()
 
 	f, err := os.OpenFile(file, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
@@ -33,17 +36,33 @@ func writeToFile(s string) {
 		slog.Error("failed to open file", "filename", file)
 	}
 	defer f.Close()
-	fmt.Fprintf(f, "%s,%s\n", time.Now().Format(time.DateTime), s)
+	fmt.Fprintf(f, "%s,%s\n", time.Now().Format(time.DateTime), b)
 }
 
-func main() {
+func readInputNoEcho() {
+	for {
+		in, err := term.ReadPassword(syscall.Stdin)
+		if err != nil {
+			slog.Error("error reading input",
+				slog.String("error", err.Error()))
+		}
+		slog.Info("", "input", in)
+		writeToFile(in)
+	}
+}
+
+func readInput() {
 	scanner := bufio.NewScanner(os.Stdin)
-	slog.Info("ready to scan")
 	for {
 		if scanner.Scan() {
-			in := scanner.Text()
+			in := scanner.Bytes()
 			slog.Info("", "input", in)
 			writeToFile(in)
 		}
 	}
+}
+
+func main() {
+	slog.Info("ready to scan")
+	readInputNoEcho()
 }
