@@ -15,6 +15,8 @@ import (
 var (
 	DatedFile bool
 	OutputDir string
+	Version   string = "dev"
+	Revision  string = "unknown"
 )
 
 func init() {
@@ -75,6 +77,7 @@ func readInput() {
 }
 
 func main() {
+	fmt.Printf("scan2csv version=%s revision=%s\n", Version, Revision)
 	slog.Info("ready to scan")
 	readInputNoEcho()
 }
