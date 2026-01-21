@@ -20,11 +20,11 @@ Usage of scan2csv:
 $ chmod +x ./scan2csv
 
 $ ./scan2csv
-2026/01/18 14:23:24 INFO ready to scan
-2026/01/18 14:23:29 INFO  input=12345
-2026/01/18 14:23:33 INFO  input=asdf
+2026/01/20 22:28:42 INFO ready to scan
+2026/01/20 22:28:44 INFO writing to file path=./scans_2026-01-20.csv input="asdf"
+2026/01/20 22:28:45 INFO writing to file path=./scans_2026-01-20.csv input="1234"
 
-$ cat ./scans_2026-01-18.csv
-2026-01-18 14:23:29,12345
-2026-01-18 14:23:33,asdf
+$ cat scans_2026-01-20.csv
+2026-01-20 22:28:44,asdf
+2026-01-20 22:28:45,1234
 ```

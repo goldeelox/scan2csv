@@ -31,7 +31,15 @@ func filename() string {
 }
 
 func writeToFile(b []byte) {
+	if isEmpty(b) {
+		slog.Info("ignoring empty input")
+		return
+	}
+
 	file := filename()
+	slog.Info("writing to file",
+		slog.String("path", file),
+		slog.Any("input", b))
 
 	f, err := os.OpenFile(file, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 	if err != nil {
@@ -41,6 +49,10 @@ func writeToFile(b []byte) {
 	fmt.Fprintf(f, "%s,%s\n", time.Now().Format(time.DateTime), b)
 }
 
+func isEmpty(b []byte) bool {
+	return len(b) == 0
+}
+
 func readInputNoEcho() {
 	for {
 		in, err := term.ReadPassword(syscall.Stdin)
@@ -48,7 +60,7 @@ func readInputNoEcho() {
 			slog.Error("error reading input",
 				slog.String("error", err.Error()))
 		}
-		slog.Info("", "input", in)
+
 		writeToFile(in)
 	}
 }
@@ -57,9 +69,7 @@ func readInput() {
 	scanner := bufio.NewScanner(os.Stdin)
 	for {
 		if scanner.Scan() {
-			in := scanner.Bytes()
-			slog.Info("", "input", in)
-			writeToFile(in)
+			writeToFile(scanner.Bytes())
 		}
 	}
 }
