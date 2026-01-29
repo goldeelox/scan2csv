@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"flag"
 	"fmt"
+	"io/fs"
 	"log/slog"
 	"os"
 	"syscall"
@@ -13,15 +14,19 @@ import (
 )
 
 var (
-	DatedFile bool
-	OutputDir string
-	Version   string = "dev"
-	Revision  string = "unknown"
+	DatedFile            bool
+	OutputDir            string
+	DetectRemovableDisks bool
+	RemovableDiskUUID    string
+	Version              string = "dev"
+	Revision             string = "unknown"
 )
 
 func init() {
 	flag.BoolVar(&DatedFile, "dated-file", true, "Include date in output file name (e.g., scans_1970-01-01.csv)")
 	flag.StringVar(&OutputDir, "output-dir", ".", "Directory to write CSV files to")
+	flag.StringVar(&RemovableDiskUUID, "uuid", "", "UUID of removable disk used to backup scan files (Attach removable disk and run with -detect-removable-disks to get UUID)")
+	flag.BoolVar(&DetectRemovableDisks, "detect-removable-disks", false, "Scans for attached removable disks then exits")
 	flag.Parse()
 }
 
@@ -76,8 +81,42 @@ func readInput() {
 	}
 }
 
+func backup(uuid string) {
+	disk := NewRemovableDisk(uuid)
+
+	for {
+		if disk.isMounted() {
+			slog.Info("removable disk detected",
+				slog.String("UUID", disk.UUID),
+				slog.String("path", disk.mountPoint()))
+
+			fsys := os.DirFS(OutputDir)
+			matches, _ := fs.Glob(fsys, "scans*.csv")
+
+			for _, match := range matches {
+				disk.copyFile(OutputDir + "/" + match)
+			}
+
+			slog.Info("backup complete")
+			disk.unmount()
+			disk.poweroff()
+		}
+		time.Sleep(2 * time.Second)
+	}
+}
+
 func main() {
+	if DetectRemovableDisks {
+		detectRemovableDisks()
+		return
+	}
+
 	fmt.Printf("scan2csv version=%s revision=%s\n", Version, Revision)
+
+	if RemovableDiskUUID != "" {
+		go backup(RemovableDiskUUID)
+	}
+
 	slog.Info("ready to scan")
 	readInputNoEcho()
 }

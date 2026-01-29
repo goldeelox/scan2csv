@@ -10,8 +10,12 @@ Download [latest release](https://github.com/goldeelox/scan2csv/releases)
 Usage of scan2csv:
   -dated-file
     	Include date in output file name (e.g., scans_1970-01-01.csv) (default true)
+  -detect-removable-disks
+    	Scans for attached removable disks then exits
   -output-dir string
     	Directory to write CSV files to (default ".")
+  -uuid string
+    	UUID of removable disk used to backup scan files (Attach removable disk and run with -detect-removable-disks to detect and list UUIDs)
 ```
 
 ## Example
