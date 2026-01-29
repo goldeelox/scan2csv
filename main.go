@@ -2,11 +2,14 @@ package main
 
 import (
 	"bufio"
+	"context"
 	"flag"
 	"fmt"
 	"io/fs"
 	"log/slog"
 	"os"
+	"os/signal"
+	"sync"
 	"syscall"
 	"time"
 
@@ -81,27 +84,34 @@ func readInput() {
 	}
 }
 
-func backup(uuid string) {
+func backup(ctx context.Context, wg *sync.WaitGroup, uuid string) {
+	defer wg.Done()
+
 	disk := NewRemovableDisk(uuid)
 
 	for {
-		if disk.isMounted() {
-			slog.Info("removable disk detected",
-				slog.String("UUID", disk.UUID),
-				slog.String("path", disk.mountPoint()))
+		select {
+		case <-ctx.Done():
+			return
+		default:
+			time.Sleep(2 * time.Second)
+			if disk.isMounted() {
+				slog.Info("removable disk detected",
+					slog.String("UUID", disk.UUID),
+					slog.String("path", disk.mountPoint()))
 
-			fsys := os.DirFS(OutputDir)
-			matches, _ := fs.Glob(fsys, "scans*.csv")
+				fsys := os.DirFS(OutputDir)
+				matches, _ := fs.Glob(fsys, "scans*.csv")
 
-			for _, match := range matches {
-				disk.copyFile(OutputDir + "/" + match)
+				for _, match := range matches {
+					disk.copyFile(OutputDir + "/" + match)
+				}
+
+				slog.Info("backup complete")
+				disk.unmount()
+				disk.poweroff()
 			}
-
-			slog.Info("backup complete")
-			disk.unmount()
-			disk.poweroff()
 		}
-		time.Sleep(2 * time.Second)
 	}
 }
 
@@ -113,10 +123,20 @@ func main() {
 
 	fmt.Printf("scan2csv version=%s revision=%s\n", Version, Revision)
 
+	var wg sync.WaitGroup
+	ctx, _ := signal.NotifyContext(context.Background(), os.Interrupt)
+
 	if RemovableDiskUUID != "" {
-		go backup(RemovableDiskUUID)
+		wg.Add(1)
+		go backup(ctx, &wg, RemovableDiskUUID)
 	}
 
 	slog.Info("ready to scan")
-	readInputNoEcho()
+	go readInputNoEcho()
+
+	select {
+	case <-ctx.Done():
+		slog.Warn("shutting down")
+		wg.Wait()
+	}
 }
