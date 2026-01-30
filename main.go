@@ -9,6 +9,7 @@ import (
 	"log/slog"
 	"os"
 	"os/signal"
+	"runtime"
 	"sync"
 	"syscall"
 	"time"
@@ -116,7 +117,13 @@ func backup(ctx context.Context, wg *sync.WaitGroup, uuid string) {
 }
 
 func main() {
+	removableDiskSupported := runtime.GOOS == "linux"
+
 	if DetectRemovableDisks {
+		if !removableDiskSupported {
+			fmt.Printf("removable disk support not available in %s\n", runtime.GOOS)
+			return
+		}
 		detectRemovableDisks()
 		return
 	}
@@ -127,8 +134,12 @@ func main() {
 	ctx, _ := signal.NotifyContext(context.Background(), os.Interrupt)
 
 	if RemovableDiskUUID != "" {
-		wg.Add(1)
-		go backup(ctx, &wg, RemovableDiskUUID)
+		if removableDiskSupported {
+			wg.Add(1)
+			go backup(ctx, &wg, RemovableDiskUUID)
+		} else {
+			slog.Warn("removable disk support not available for this OS")
+		}
 	}
 
 	slog.Info("ready to scan")
