@@ -19,6 +19,7 @@ func detectRemovableDisks() {
 type RemovableDisk struct {
 	UUID       string
 	DevicePath string
+	AutoMount  bool
 }
 
 func executableExistsInPath(name string) bool {
@@ -26,7 +27,7 @@ func executableExistsInPath(name string) bool {
 	return err == nil
 }
 
-func NewRemovableDisk(uuid string) *RemovableDisk {
+func NewRemovableDisk(uuid string, automount bool) *RemovableDisk {
 	requiredExecutables := []string{"lsblk", "udisksctl"}
 	for _, e := range requiredExecutables {
 		if !executableExistsInPath(e) {
@@ -39,6 +40,7 @@ func NewRemovableDisk(uuid string) *RemovableDisk {
 	return &RemovableDisk{
 		UUID:       uuid,
 		DevicePath: "/dev/disk/by-uuid/" + uuid,
+		AutoMount:  automount,
 	}
 }
 
@@ -50,6 +52,17 @@ func (d *RemovableDisk) mountPoint() string {
 
 func (d *RemovableDisk) isMounted() bool {
 	return len(d.mountPoint()) > 0
+}
+
+func (d *RemovableDisk) isAttached() bool {
+	_, err := os.Stat("/dev/disk/by-uuid/" + d.UUID)
+	return err == nil
+}
+
+func (d *RemovableDisk) mount() error {
+	cmd := exec.Command("udisksctl", "mount", "-b", d.DevicePath)
+	_, err := cmd.Output()
+	return err
 }
 
 func (d *RemovableDisk) unmount() error {
