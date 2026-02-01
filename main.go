@@ -1,9 +1,7 @@
 package main
 
 import (
-	"bufio"
 	"context"
-	"flag"
 	"fmt"
 	"io/fs"
 	"log/slog"
@@ -18,39 +16,18 @@ import (
 )
 
 var (
-	AutoMount            bool
-	DatedFile            bool
-	DetectRemovableDisks bool
-	OutputDir            string
-	RemovableDiskUUID    string
-
 	Version  string = "dev"
 	Revision string = "unknown"
 )
 
-func init() {
-	flag.BoolVar(&AutoMount, "automount", false, "Auto mount removable disk")
-	flag.BoolVar(&DatedFile, "dated-file", true, "Include date in output file name (e.g., scans_1970-01-01.csv)")
-	flag.BoolVar(&DetectRemovableDisks, "detect-removable-disks", false, "Scans for attached removable disks then exits")
-	flag.StringVar(&OutputDir, "output-dir", ".", "Directory to write CSV files to")
-	flag.StringVar(&RemovableDiskUUID, "uuid", "", "UUID of removable disk used to backup scan files (Attach removable disk and run with -detect-removable-disks to get UUID)")
-	flag.Parse()
-}
+func writeToFile(wg *sync.WaitGroup, b []byte, file string) {
+	defer wg.Done()
 
-func filename() string {
-	if DatedFile {
-		return fmt.Sprintf("%s/scans_%s.csv", OutputDir, time.Now().Format(time.DateOnly))
-	}
-	return fmt.Sprintf("%s/scans.csv", OutputDir)
-}
-
-func writeToFile(b []byte) {
-	if isEmpty(b) {
+	if len(b) == 0 {
 		slog.Info("ignoring empty input")
 		return
 	}
 
-	file := filename()
 	slog.Info("writing to file",
 		slog.String("path", file),
 		slog.Any("input", b))
@@ -63,35 +40,8 @@ func writeToFile(b []byte) {
 	fmt.Fprintf(f, "%s,%s\n", time.Now().Format(time.DateTime), b)
 }
 
-func isEmpty(b []byte) bool {
-	return len(b) == 0
-}
-
-func readInputNoEcho() {
-	for {
-		in, err := term.ReadPassword(syscall.Stdin)
-		if err != nil {
-			slog.Error("error reading input",
-				slog.String("error", err.Error()))
-		}
-
-		writeToFile(in)
-	}
-}
-
-func readInput() {
-	scanner := bufio.NewScanner(os.Stdin)
-	for {
-		if scanner.Scan() {
-			writeToFile(scanner.Bytes())
-		}
-	}
-}
-
-func backup(ctx context.Context, wg *sync.WaitGroup, uuid string) {
+func (c Config) backup(ctx context.Context, wg *sync.WaitGroup, disk *RemovableDisk) {
 	defer wg.Done()
-
-	disk := NewRemovableDisk(uuid, AutoMount)
 
 	for {
 		select {
@@ -113,10 +63,10 @@ func backup(ctx context.Context, wg *sync.WaitGroup, uuid string) {
 				slog.String("UUID", disk.UUID),
 				slog.String("mountPoint", disk.mountPoint()))
 
-			fsys := os.DirFS(OutputDir)
+			fsys := os.DirFS(c.OutputDir)
 			matches, _ := fs.Glob(fsys, "scans*.csv")
 			for _, match := range matches {
-				disk.copyFile(OutputDir + "/" + match)
+				disk.copyFile(c.OutputDir + "/" + match)
 			}
 			slog.Info("backup complete")
 
@@ -135,33 +85,46 @@ func backup(ctx context.Context, wg *sync.WaitGroup, uuid string) {
 }
 
 func main() {
-	removableDiskSupported := runtime.GOOS == "linux"
+	var wg sync.WaitGroup
+	ctx, _ := signal.NotifyContext(context.Background(), os.Interrupt)
+	fmt.Printf("scan2csv version=%s revision=%s\n", Version, Revision)
 
-	if DetectRemovableDisks {
-		if !removableDiskSupported {
-			fmt.Printf("removable disk support not available in %s\n", runtime.GOOS)
-			return
-		}
+	config := ParseConfig()
+
+	if !config.RemovableDisksSupported {
+		fmt.Printf("removable disk support not available in %s\n", runtime.GOOS)
+	}
+
+	if config.RemovableDisksSupported && config.DetectRemovableDisks {
 		detectRemovableDisks()
 		return
 	}
 
-	fmt.Printf("scan2csv version=%s revision=%s\n", Version, Revision)
-
-	var wg sync.WaitGroup
-	ctx, _ := signal.NotifyContext(context.Background(), os.Interrupt)
-
-	if RemovableDiskUUID != "" {
-		if removableDiskSupported {
-			wg.Add(1)
-			go backup(ctx, &wg, RemovableDiskUUID)
-		} else {
-			slog.Warn("removable disk support not available for this OS")
-		}
+	if config.RemovableDisksSupported && len(config.RemovableDiskUUID) > 0 {
+		disk := NewRemovableDisk(config.RemovableDiskUUID, config.AutoMount)
+		wg.Add(1)
+		go config.backup(ctx, &wg, disk)
 	}
 
 	slog.Info("ready to scan")
-	go readInputNoEcho()
+	go func() {
+		for {
+			in, err := term.ReadPassword(syscall.Stdin)
+			if err != nil {
+				slog.Error("error reading input",
+					slog.String("error", err.Error()))
+			}
+
+			var file string
+			if config.DatedFile {
+				file = fmt.Sprintf("%s/scans_%s.csv", config.OutputDir, time.Now().Format(time.DateOnly))
+			} else {
+				file = fmt.Sprintf("%s/scans.csv", config.OutputDir)
+			}
+			wg.Add(1)
+			writeToFile(&wg, in, file)
+		}
+	}()
 
 	select {
 	case <-ctx.Done():
