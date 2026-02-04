@@ -3,7 +3,7 @@ package main
 import (
 	"fmt"
 	"io"
-	"log/slog"
+	"log"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -31,8 +31,7 @@ func NewRemovableDisk(uuid string, automount bool) *RemovableDisk {
 	requiredExecutables := []string{"lsblk", "udisksctl"}
 	for _, e := range requiredExecutables {
 		if !executableExistsInPath(e) {
-			slog.Error("executable required to use removable disks is not found",
-				slog.String("executable", e))
+			log.Printf("%s executable required to use removable disks is not found", e)
 			os.Exit(1)
 		}
 	}
@@ -67,8 +66,6 @@ func (d *RemovableDisk) mount() error {
 
 func (d *RemovableDisk) unmount() error {
 	if !d.isMounted() {
-		slog.Info("disk is not mounted",
-			slog.String("UUID", d.UUID))
 		return nil
 	}
 
@@ -84,47 +81,32 @@ func (d *RemovableDisk) poweroff() error {
 
 	cmd := exec.Command("udisksctl", "power-off", "-b", d.DevicePath)
 	_, err := cmd.Output()
-	if err == nil {
-		slog.Info("disk can be safely removed",
-			slog.String("UUID", d.UUID))
-	}
 	return err
 }
 
-func (d *RemovableDisk) copyFile(src string) {
+func (d *RemovableDisk) copyFile(src string) error {
 	if !d.isMounted() {
-		slog.Error("disk is not mounted",
-			slog.String("UUID", d.UUID))
-		return
+		return nil
 	}
 
 	filename := filepath.Base(src)
 	source, err := os.Open(src)
 	if err != nil {
-		slog.Error("error opening file",
-			slog.String("source", src))
+		return err
 	}
 	defer source.Close()
 
 	dest, err := os.Create(d.mountPoint() + "/" + filename)
 	defer dest.Close()
 
-	slog.Info("copying file to removable disk",
-		slog.String("source", filename),
-		slog.String("destination", dest.Name()))
-
 	_, err = io.Copy(dest, source)
 	if err != nil {
-		slog.Error("error copying file",
-			slog.String("filename", filename),
-			slog.String("msg", err.Error()))
+		return err
 	}
 
 	err = dest.Sync()
 	if err != nil {
-		slog.Error("error syncing file to removable disk",
-			slog.String("UUID", d.UUID),
-			slog.String("filename", dest.Name()),
-			slog.String("msg", err.Error()))
+		return err
 	}
+	return nil
 }
