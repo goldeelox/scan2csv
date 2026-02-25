@@ -1,10 +1,13 @@
 package main
 
 import (
+	"bufio"
 	"fmt"
+	"io"
 	"io/fs"
 	"log"
 	"os"
+	"strings"
 	"sync"
 	"time"
 
@@ -18,6 +21,23 @@ var (
 	Version  string = "dev"
 	Revision string = "unknown"
 )
+
+func loadRows(filename string) []table.Row {
+	source, _ := os.Open(filename)
+	defer source.Close()
+
+	source.Seek(-500, io.SeekEnd)
+	scanner := bufio.NewScanner(source)
+	// skip first line in case we missed the start
+	scanner.Scan()
+	var rows []table.Row
+	for scanner.Scan() {
+		split := strings.Split(scanner.Text(), ",")
+		rows = append(rows, split)
+	}
+
+	return rows
+}
 
 type model struct {
 	textInput textinput.Model
@@ -37,13 +57,17 @@ func New(config Config) model {
 	ti.PromptStyle = ti.PromptStyle.PaddingTop(1)
 	ti.Focus()
 
+	filename := fmt.Sprintf("%s/scans_%s.csv", config.OutputDir, time.Now().Format(time.DateOnly))
+	rows := loadRows(filename)
 	tbl := table.New(
 		table.WithColumns([]table.Column{
 			{Title: "Timestamp", Width: 22},
 			{Title: "Barcode", Width: 50},
 		}),
+		table.WithRows(rows),
 		table.WithHeight(11),
 	)
+	tbl.GotoBottom()
 
 	tblStyle := table.DefaultStyles()
 	tblStyle.Header = tblStyle.Header.
@@ -150,6 +174,7 @@ func (m model) View() string {
 	statusStyle := lipgloss.NewStyle().
 		Foreground(lipgloss.Color("7")).
 		PaddingTop(1).
+		Width(72).
 		Faint(true)
 
 	return lipgloss.Place(
