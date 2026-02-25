@@ -5,6 +5,8 @@ Input delimited by new line is written to a CSV file. Each line contains two col
 
 Download [latest release](https://github.com/goldeelox/scan2csv/releases)
 
+![demo](./docs/demo.gif)
+
 ## Usage
 ```bash
 Usage of scan2csv:
