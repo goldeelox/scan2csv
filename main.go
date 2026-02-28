@@ -11,10 +11,10 @@ import (
 	"sync"
 	"time"
 
-	"github.com/charmbracelet/bubbles/table"
-	"github.com/charmbracelet/bubbles/textinput"
-	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
+	"charm.land/bubbles/v2/table"
+	"charm.land/bubbles/v2/textinput"
+	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 )
 
 var (
@@ -52,9 +52,7 @@ type model struct {
 func New(config Config) model {
 	ti := textinput.New()
 	ti.Placeholder = "Scan barcode..."
-	ti.Width = 24
-	ti.Cursor.BlinkSpeed = 500 * time.Millisecond
-	ti.PromptStyle = ti.PromptStyle.PaddingTop(1)
+	ti.SetWidth(24)
 	ti.Focus()
 
 	filename := fmt.Sprintf("%s/scans_%s.csv", config.OutputDir, time.Now().Format(time.DateOnly))
@@ -66,6 +64,7 @@ func New(config Config) model {
 		}),
 		table.WithRows(rows),
 		table.WithHeight(11),
+		table.WithWidth(76),
 	)
 	tbl.GotoBottom()
 
@@ -130,7 +129,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
 		m.height = msg.Height
-	case tea.KeyMsg:
+	case tea.KeyPressMsg:
 		switch msg.String() {
 		case "ctrl+c":
 			return m, tea.Quit
@@ -170,14 +169,17 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, cmd
 }
 
-func (m model) View() string {
+func (m model) View() tea.View {
+	textInputStyle := lipgloss.NewStyle().
+		PaddingTop(1)
+
 	statusStyle := lipgloss.NewStyle().
 		Foreground(lipgloss.Color("7")).
 		PaddingTop(1).
 		Width(72).
 		Faint(true)
 
-	return lipgloss.Place(
+	content := lipgloss.Place(
 		m.width,
 		m.height,
 		lipgloss.Center,
@@ -185,10 +187,13 @@ func (m model) View() string {
 		lipgloss.JoinVertical(
 			lipgloss.Left,
 			m.table.View(),
-			m.textInput.View(),
+			textInputStyle.Render(m.textInput.View()),
 			statusStyle.Render(m.status),
 		),
 	)
+	v := tea.NewView(content)
+	v.Cursor = m.textInput.Cursor()
+	return v
 }
 
 type StatusOk string
